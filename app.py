@@ -1,50 +1,107 @@
-import streamlit as st 
-from data_preprocessing import load_and_preprocess_data
-from sklearn.ensemble import RandomForestClassifier 
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
 
-# Charger et prétraiter les données
-X_train, X_test, y_train, y_test, data = load_and_preprocess_data()
+# Chargement des données
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
+column_names = [
+    "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", 
+    "exang", "oldpeak", "slope", "ca", "thal", "target"
+]
+data = pd.read_csv(url, names=column_names, na_values="?")
+data = data.dropna()
+data['target'] = data['target'].apply(lambda x: 1 if x > 0 else 0)
 
-# Entraîner le modèle (Random Forest)
-model = RandomForestClassifier()
+# Séparation des caractéristiques et de la cible
+X = data.drop('target', axis=1)
+y = data['target']
+
+# Division des données en ensembles d'entraînement et de test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Normalisation des données
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Entraînement du modèle (Random Forest)
+model = RandomForestClassifier(random_state=42)
 model.fit(X_train, y_train)
 
 # Interface Streamlit
-st.title("Prédiction de Maladie Cardiaque")
-st.write("""
-Cette application prédit la présence d'une maladie cardiaque en fonction des données saisies.
-""")
+st.set_page_config(page_title="Prédiction de maladie cardiaque", )
 
-# Formulaire de saisie
-st.sidebar.header("Saisie des Données")
-age = st.sidebar.slider("Âge", 0, 100, 50)
-sex = st.sidebar.selectbox("Sexe", ["Femme", "Homme"])
-cp = st.sidebar.selectbox("Type de Douleur Thoracique", [0, 1, 2, 3])
-trestbps = st.sidebar.slider("Pression Artérielle au Repos", 0, 200, 120)
-chol = st.sidebar.slider("Cholestérol Sérique", 0, 600, 200)
-fbs = st.sidebar.selectbox("Glycémie à Jeun > 120 mg/dl", [0, 1])
-restecg = st.sidebar.selectbox("Résultats Électrocardiographiques au Repos", [0, 1, 2])
-thalach = st.sidebar.slider("Fréquence Cardiaque Maximale Atteinte", 0, 220, 150)
-exang = st.sidebar.selectbox("Angine Induite par l'Exercice", [0, 1])
-oldpeak = st.sidebar.slider("Dépression du Segment ST Induite par l'Exercice", 0.0, 6.2, 1.0)
-slope = st.sidebar.selectbox("Pente du Segment ST au Pic de l'Exercice", [0, 1, 2])
-ca = st.sidebar.slider("Nombre de Gros Vaisseaux Colorés par Fluoroscopie", 0, 3, 0)
-thal = st.sidebar.selectbox("Thalassémie", [3, 6, 7])
+# Titre et sous-titre
+st.title(" Prédiction de maladie cardiaque")
+st.markdown("""
+    <style>
+    .big-font {
+        font-size: 20px !important;
+        color: #2E86C1;
+    }
+    </style>
+    <div class="big-font">
+    """, unsafe_allow_html=True)
 
-# Prédiction
-if st.sidebar.button("Prédire"):
-    input_data = [[
-        age, 1 if sex == "Homme" else 0, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal
-    ]]
-    prediction = model.predict(input_data)
-    prediction_proba = model.predict_proba(input_data)
+# Section pour saisir les informations du patient
+st.sidebar.header("Renseignements")
 
-    st.subheader("Résultat de la Prédiction")
+# Création des champs de saisie
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    age = st.number_input("Âge", min_value=0, max_value=120, value=50)
+    sex = st.selectbox("Sexe", options=[("Homme", 1), ("Femme", 0)], format_func=lambda x: x[0])[1]
+    cp = st.selectbox("Type de douleur thoracique", options=[(0, "Typical Angina"), (1, "Atypical Angina"), (2, "Non-anginal Pain"), (3, "Asymptomatic")], format_func=lambda x: x[1])[0]
+    trestbps = st.number_input("Pression artérielle au repos (en mm Hg)", min_value=0, max_value=200, value=120)
+    chol = st.number_input("Cholestérol sérique (en mg/dl)", min_value=0, max_value=600, value=200)
+    fbs = st.selectbox("Glycémie à jeun > 120 mg/dl", options=[("Non", 0), ("Oui", 1)], format_func=lambda x: x[0])[1]
+
+with col2:
+    restecg = st.selectbox("Résultats électrocardiographiques au repos", options=[(0, "Normal"), (1, "Anomalie onde ST-T"), (2, "Hypertrophie ventriculaire gauche probable")], format_func=lambda x: x[1])[0]
+    thalach = st.number_input("Fréquence cardiaque maximale atteinte", min_value=0, max_value=220, value=150)
+    exang = st.selectbox("Angine induite par l'exercice", options=[("Non", 0), ("Oui", 1)], format_func=lambda x: x[0])[1]
+    oldpeak = st.number_input("Dépression du segment ST induite par l'exercice", min_value=0.0, max_value=10.0, value=1.0)
+    slope = st.selectbox("Pente du segment ST au pic de l'exercice", options=[(0, "Montante"), (1, "Plate"), (2, "Descendante")], format_func=lambda x: x[1])[0]
+    ca = st.number_input("Nombre de gros vaisseaux colorés par fluoroscopie", min_value=0, max_value=3, value=0)
+    thal = st.selectbox("Thalassémie", options=[(3, "Normal"), (6, "Défaut fixe"), (7, "Défaut réversible")], format_func=lambda x: x[1])[0]
+
+# Bouton pour faire la prédiction
+if st.sidebar.button("Prédire", key="predict_button"):
+    # Créer un DataFrame avec les informations du patient
+    patient_data = pd.DataFrame({
+        "age": [age],
+        "sex": [sex],
+        "cp": [cp],
+        "trestbps": [trestbps],
+        "chol": [chol],
+        "fbs": [fbs],
+        "restecg": [restecg],
+        "thalach": [thalach],
+        "exang": [exang],
+        "oldpeak": [oldpeak],
+        "slope": [slope],
+        "ca": [ca],
+        "thal": [thal]
+    })
+
+    # Normaliser les données du patient
+    patient_data_scaled = scaler.transform(patient_data)
+
+    # Faire la prédiction
+    prediction = model.predict(patient_data_scaled)
+    prediction_proba = model.predict_proba(patient_data_scaled)
+
+    # Afficher le résultat
+    st.subheader(" Résultat de la prédiction")
     if prediction[0] == 1:
-        st.write("**Maladie Cardiaque détectée.**")
+        st.error(" présence de maladie cardiaque.")
     else:
-        st.write("**Pas de maladie cardiaque détectée.**")
+        st.success("absence de maladie cardiaque.")
 
-    st.subheader("Probabilités")
-    st.write(f"Probabilité de maladie cardiaque : {prediction_proba[0][1]:.2f}")
-    st.write(f"Probabilité de non-maladie cardiaque : {prediction_proba[0][0]:.2f}")
+    # Afficher les probabilités
+    st.write(f"absence de maladie cardiaque : {prediction_proba[0][0]:.2f}")
+    st.write(f"présence de maladie cardiaque : {prediction_proba[0][1]:.2f}")
+
